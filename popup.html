@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Page Bump</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="pb-shell">
+
+    <!-- HEADER -->
+    <header class="pb-header">
+      <div class="pb-status-row">
+        <span class="pb-status-dot" id="statusDot"></span>
+        <span class="pb-status-text" id="statusText">Idle</span>
+        <span class="pb-timer" id="timer"></span>
+        <button class="pb-theme-btn" id="btnTheme" title="Toggle light/dark mode">🌙</button>
+      </div>
+    </header>
+
+    <!-- DISABLED BANNER -->
+    <div class="pb-disabled-banner hidden" id="disabledBanner">
+      Recording disabled for this tab
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="pb-controls">
+      <button class="pb-btn pb-btn--primary" id="btnToggle">
+        <svg id="btnToggleIcon" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="6.25" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="7" cy="7" r="3.5" fill="currentColor"/>
+        </svg>
+        <span id="btnToggleText">Start Recording</span>
+      </button>
+      <button class="pb-btn pb-btn--disable" id="btnDisable">Disable Recording</button>
+    </div>
+
+    <!-- PAGE INFO -->
+    <div class="pb-page-info hidden" id="pageInfo">
+      <img class="pb-page-favicon" id="pageFavicon" src="" alt="" width="14" height="14">
+      <div class="pb-page-meta">
+        <span class="pb-page-title" id="pageTitle"></span>
+        <a class="pb-page-url" id="pageUrl" href="#" target="_blank" rel="noopener"></a>
+      </div>
+    </div>
+
+    <!-- SUMMARY STATS -->
+    <section class="pb-summary hidden" id="summary">
+      <div class="pb-stat">
+        <span class="pb-stat__label">Transferred</span>
+        <span class="pb-stat__value" id="statTransferred">—</span>
+      </div>
+      <div class="pb-stat">
+        <span class="pb-stat__label">Raw Size</span>
+        <span class="pb-stat__value" id="statRaw">—</span>
+      </div>
+      <div class="pb-stat">
+        <span class="pb-stat__label">Requests</span>
+        <span class="pb-stat__value" id="statRequests">—</span>
+      </div>
+      <div class="pb-stat">
+        <span class="pb-stat__label">Savings</span>
+        <span class="pb-stat__value" id="statCompression">—</span>
+      </div>
+    </section>
+
+    <!-- SIZE MODE TOGGLE -->
+    <div class="pb-mode-toggle hidden" id="modeToggle">
+      <button class="pb-tab active" data-mode="transferred">Transferred</button>
+      <button class="pb-tab" data-mode="raw">Raw</button>
+    </div>
+
+    <!-- CHARTS AREA -->
+    <div class="pb-charts hidden" id="charts">
+
+      <!-- Pie: by content type -->
+      <section class="pb-chart-section">
+        <h3 class="pb-chart-title">By Content Type</h3>
+        <div class="pb-pie-row">
+          <div class="pb-chart-wrap pb-chart-wrap--pie">
+            <canvas id="chartType"></canvas>
+          </div>
+          <div class="pb-legend" id="legendType"></div>
+        </div>
+      </section>
+
+      <!-- Pie: by host -->
+      <section class="pb-chart-section">
+        <h3 class="pb-chart-title">By Host</h3>
+        <div class="pb-pie-row">
+          <div class="pb-chart-wrap pb-chart-wrap--pie">
+            <canvas id="chartHost"></canvas>
+          </div>
+          <div class="pb-legend" id="legendHost"></div>
+        </div>
+        <div class="pb-load-more-wrap" id="hostLoadMore"></div>
+      </section>
+
+      <!-- Horizontal bar: by host + path -->
+      <section class="pb-chart-section">
+        <h3 class="pb-chart-title">By Host + Path</h3>
+        <div class="pb-chart-wrap pb-chart-wrap--bar" id="chartHostPathWrap">
+          <canvas id="chartHostPath"></canvas>
+        </div>
+        <div class="pb-load-more-wrap" id="pathLoadMore"></div>
+      </section>
+
+    </div>
+
+    <!-- EMPTY / COLLECTING STATE -->
+    <div class="pb-empty" id="emptyState">
+      <div class="pb-empty-icon">📊</div>
+      <p class="pb-empty-title">No data yet</p>
+      <p class="pb-empty-hint">Navigate to a page or press <strong>Start Recording</strong> to begin analysis.</p>
+    </div>
+
+    <div class="pb-collecting hidden" id="collectingState">
+      <div class="pb-spinner"></div>
+      <p>Collecting data…</p>
+    </div>
+
+  </div>
+
+  <script src="lib/chart.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+/* ============================================================
+   Page Bump — overlay.css
+   Injected into web pages for the floating panel container.
+   ALL styles are scoped under #pb-overlay-root to avoid
+   polluting the host page's stylesheet.
+   ============================================================ */
+
+#pb-overlay-root {
+  all: initial;
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  top: 16px !important;
+  right: 16px !important;
+  width: 440px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.40), 0 0 0 1px rgba(0, 0, 0, 0.12) !important;
+  overflow: hidden !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  user-select: none !important;
+  transition: box-shadow 0.2s !important;
+}
+
+#pb-overlay-root:not(.pb-dragging) {
+  transition: box-shadow 0.2s !important;
+}
+
+#pb-overlay-root.pb-dragging {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.2) !important;
+  cursor: grabbing !important;
+}
+
+/* ---- Drag handle bar ---- */
+
+#pb-overlay-root .pb-drag-bar {
+  all: unset !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 7px 10px !important;
+  background: #1a1a2e !important;
+  border-bottom: 1px solid #0f3460 !important;
+  cursor: grab !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+#pb-overlay-root .pb-drag-bar:active {
+  cursor: grabbing !important;
+}
+
+#pb-overlay-root .pb-drag-title {
+  all: unset !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #eaeaea !important;
+  letter-spacing: -0.2px !important;
+  pointer-events: none !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+}
+
+#pb-overlay-root .pb-drag-btns {
+  all: unset !important;
+  display: flex !important;
+  gap: 5px !important;
+}
+
+#pb-overlay-root .pb-drag-btn {
+  all: unset !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.10) !important;
+  color: #aaaacc !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background 0.15s, color 0.15s !important;
+  box-sizing: border-box !important;
+}
+
+#pb-overlay-root .pb-drag-btn:hover {
+  background: rgba(233, 69, 96, 0.25) !important;
+  color: #e94560 !important;
+}
+
+/* ---- iframe wrapper ---- */
+
+#pb-overlay-root .pb-frame-wrap {
+  all: unset !important;
+  display: block !important;
+  width: 440px !important;
+  height: 580px !important;
+  overflow: hidden !important;
+  background: #1a1a2e !important;
+  transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-sizing: border-box !important;
+}
+
+#pb-overlay-root .pb-frame-wrap.pb-collapsed {
+  height: 0 !important;
+}
+
+#pb-overlay-root .pb-frame-wrap iframe {
+  all: unset !important;
+  display: block !important;
+  width: 440px !important;
+  height: 580px !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+/* ---- Light theme overrides ---- */
+
+#pb-overlay-root.pb-light .pb-drag-bar {
+  background: #ffffff !important;
+  border-bottom-color: #d1d1da !important;
+}
+
+#pb-overlay-root.pb-light .pb-drag-title {
+  color: #1a1a2e !important;
+}
+
+#pb-overlay-root.pb-light .pb-drag-btn {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #6b6b80 !important;
+}
+
+#pb-overlay-root.pb-light .pb-drag-btn:hover {
+  background: rgba(233, 69, 96, 0.12) !important;
+  color: #e94560 !important;
+}
+
+#pb-overlay-root.pb-light .pb-frame-wrap {
+  background: #f4f4f8 !important;
+}
