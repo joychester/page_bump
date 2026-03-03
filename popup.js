@@ -514,11 +514,32 @@ function renderBarByHostPath(byHostPath, mode) {
 
   const labels = entries.map(([k]) => k);
   const data   = entries.map(([, v]) => v[mode]);
+  const total  = data.reduce((a, b) => a + b, 0);
 
   // Dynamic canvas height: 24px per bar + 50px for axes
   const chartHeight = Math.max(100, entries.length * 24 + 50);
   const wrap = document.getElementById('chartHostPathWrap');
   wrap.style.height = chartHeight + 'px';
+
+  const pctPlugin = {
+    id: 'barPctLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.fillStyle = currentTheme === 'dark' ? '#8888a8' : '#6b6b80';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      data.forEach((val, i) => {
+        const pct = total > 0 ? (val / total) * 100 : 0;
+        const label = pct < 1 ? '<1%' : Math.round(pct) + '%';
+        const bar = meta.data[i];
+        ctx.fillText(label, bar.x + 4, bar.y);
+      });
+      ctx.restore();
+    },
+  };
 
   destroyChart('hostPath');
   const ctx = document.getElementById('chartHostPath').getContext('2d');
@@ -536,6 +557,7 @@ function renderBarByHostPath(byHostPath, mode) {
       }],
     },
     options: barOptions(),
+    plugins: [pctPlugin],
   });
 
   updateLoadMore('pathLoadMore', allEntries.length, visiblePathCount, () => {
@@ -584,6 +606,7 @@ function barOptions() {
     indexAxis: 'y',
     responsive: true,
     maintainAspectRatio: false,
+    layout: { padding: { right: 36 } },
     plugins: {
       legend: { display: false },
       tooltip: {

@@ -48,15 +48,17 @@ idle  ──(navigation / Start button)──►  recording  ──(8 s / 1.5 s 
 
 ```
 page_bump/
-├── manifest.json          # MV3 extension manifest
-├── background.js          # Service worker: recording state machine, data merge
-├── content-overlay.js     # Content script: injects draggable iframe overlay
-├── overlay.css            # Styles for the injected overlay container
-├── popup.html             # Panel UI layout
-├── popup.css              # Panel styles (dark/light theme)
-├── popup.js               # Panel controller: charts, state, controls
+├── manifest.json              # MV3 extension manifest
+├── rules.json                 # declarativeNetRequest rule: injects Timing-Allow-Origin header
+├── background.js              # Service worker: recording state machine, data merge
+├── content-perf-buffer.js    # Content script (document_start): expands perf timing buffer to 1000
+├── content-overlay.js         # Content script: injects draggable iframe overlay
+├── overlay.css                # Styles for the injected overlay container
+├── popup.html                 # Panel UI layout
+├── popup.css                  # Panel styles (dark/light theme)
+├── popup.js                   # Panel controller: charts, state, controls
 ├── lib/
-│   └── chart.min.js       # Chart.js 4.4.4 (local, no CDN)
+│   └── chart.min.js           # Chart.js 4.4.4 (local, no CDN)
 └── icons/
     ├── icon16.png
     ├── icon48.png
@@ -73,9 +75,9 @@ page_bump/
 | `tabs` | Read tab URL, title, and favicon after recording |
 | `storage` | Persist recording state, theme, overlay position |
 | `alarms` | 8 s / 20 s max-duration timer that survives service worker sleep |
+| `declarativeNetRequest` | Inject `Timing-Allow-Origin: *` into responses so the Performance API can report accurate sizes for cross-origin resources |
 
 ## Known Limitations
 
 - SPA navigation (pushState/replaceState) is not detected — only full page loads trigger auto-recording
-- CORS-restricted resources show transferred size only (raw size unavailable)
-- Content-Length header may be absent for chunked responses; `transferSize` from the Performance API fills this in when available
+- Resources that are both CORS-restricted **and** served without a `Content-Length` header (chunked streaming with no `Timing-Allow-Origin`) will show 0 bytes — this is the only remaining unresolvable case
