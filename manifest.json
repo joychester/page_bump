@@ -10,7 +10,8 @@
     "tabs",
     "activeTab",
     "storage",
-    "alarms"
+    "alarms",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -29,6 +30,12 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
+      "js": ["content-perf-buffer.js"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["content-overlay.js"],
       "css": ["overlay.css"],
       "run_at": "document_end",
@@ -45,6 +52,11 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      { "id": "timing_allow", "enabled": true, "path": "rules.json" }
+    ]
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'"

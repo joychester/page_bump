@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "Timing-Allow-Origin", "operation": "set", "value": "*" }
+      ]
+    },
+    "condition": {
+      "resourceTypes": [
+        "main_frame", "sub_frame", "script", "stylesheet",
+        "image", "font", "xmlhttprequest", "other"
+      ]
+    }
+  }
+]
