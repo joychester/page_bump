@@ -1,4 +1,4 @@
-// content-overlay.js — Page Bump floating overlay injector
+// content-overlay.js — Speed Bump floating overlay injector
 // Runs as a content script on http/https pages.
 // Creates a draggable iframe overlay hosting popup.html.
 
@@ -59,7 +59,7 @@ function createOverlay(collapsed, theme) {
   const bar = document.createElement('div');
   bar.className = 'pb-drag-bar';
   bar.innerHTML = `
-    <span class="pb-drag-title">⚡ Page Bump</span>
+    <span class="pb-drag-title">⚡ Speed Bump</span>
     <div class="pb-drag-btns">
       <button class="pb-drag-btn" id="pb-btn-collapse" title="Collapse panel">▼</button>
       <button class="pb-drag-btn" id="pb-btn-hide"     title="Hide panel">✕</button>
@@ -71,7 +71,7 @@ function createOverlay(collapsed, theme) {
 
   const iframe = document.createElement('iframe');
   iframe.src   = POPUP_URL;
-  iframe.title = 'Page Bump panel';
+  iframe.title = 'Speed Bump panel';
   frameWrap.appendChild(iframe);
 
   root.appendChild(bar);
