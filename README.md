@@ -2,6 +2,8 @@
 
 A lightweight Chrome extension that analyzes page weight by capturing network request sizes during page loads and visualizing them as interactive charts.
 
+![Page Bump Screenshot](Screenshot.png)
+
 ## Features
 
 - **Automatic recording** — starts capturing on every page navigation, stops after 8 s or 1.5 s of network idle
