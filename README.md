@@ -1,8 +1,8 @@
-# Page Bump
+# Speed Bump
 
 A lightweight Chrome extension that analyzes page weight by capturing network request sizes during page loads and visualizing them as interactive charts.
 
-![Page Bump Screenshot](Screenshot.png)
+![Speed Bump Screenshot](Screenshot.png)
 
 ## Features
 

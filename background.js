@@ -1,4 +1,4 @@
-// background.js — Page Bump service worker
+// background.js — Speed Bump service worker
 
 const MAX_MS        = 10000;  // auto-start: 10 s max + idle detection
 const MAX_MS_MANUAL = 20000;  // manual start: 20 s max, no idle auto-stop
@@ -118,7 +118,7 @@ async function collectPerformanceData() {
     perfEntries = results?.[0]?.result ?? [];
   } catch (err) {
     // Tab navigated away or was closed — proceed with webRequest data only
-    console.warn('[PageBump] executeScript failed:', err.message);
+    console.warn('[SpeedBump] executeScript failed:', err.message);
   }
 
   // Fetch current tab metadata (title + favicon now available after page load)
