@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupControls();
   setupDisableButton();
   setupModeToggle();
+  setupExport();
   setupMessageListener();
   refreshState();
 });
@@ -683,4 +684,309 @@ function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
 function sendMessage(message) {
   return chrome.runtime.sendMessage(message);
+}
+
+// ---------------------------------------------------------------------------
+// Export
+// ---------------------------------------------------------------------------
+
+function setupExport() {
+  document.getElementById('btnExport').addEventListener('click', () => {
+    if (currentResults) exportReport(currentResults);
+  });
+}
+
+async function exportReport(results) {
+  const chartJsUrl = chrome.runtime.getURL('lib/chart.min.js');
+  const [chartJs, faviconDataUrl] = await Promise.all([
+    fetch(chartJsUrl).then(r => r.text()),
+    fetchAsDataUrl(results.favIconUrl),
+  ]);
+  const html = generateReportHTML(results, chartJs, faviconDataUrl);
+  const blob = new Blob([html], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  let filename = 'page-bump';
+  if (results.pageUrl) {
+    try { filename += '-' + new URL(results.pageUrl).hostname; } catch { /* ignore */ }
+  }
+  if (results.recordedAt) {
+    filename += '-' + new Date(results.recordedAt).toISOString().slice(0, 10);
+  }
+  a.download = filename + '.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function fetchAsDataUrl(url) {
+  if (!url) return '';
+  try {
+    const res  = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+  } catch { return ''; }
+}
+
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function generateReportHTML(results, chartJs, faviconDataUrl) {
+  const isDark = currentTheme === 'dark';
+
+  const C = {
+    border:    isDark ? '#16213e'             : '#ffffff',
+    dim:       isDark ? '#8888a8'             : '#6b6b80',
+    text:      isDark ? '#eaeaea'             : '#1a1a2e',
+    grid:      isDark ? 'rgba(15,52,96,0.6)'  : 'rgba(209,209,218,0.7)',
+    axis:      isDark ? '#0f3460'             : '#d1d1da',
+    tooltipBg: isDark ? '#0f3460'             : '#ffffff',
+  };
+
+  const recordedAt  = results.recordedAt ? new Date(results.recordedAt).toLocaleString() : '';
+  const pageTitle   = escapeHtml(results.pageTitle || (results.pageUrl ? (() => { try { return new URL(results.pageUrl).hostname; } catch { return results.pageUrl; } })() : 'Unknown Page'));
+  const pageUrl     = escapeHtml(results.pageUrl || '');
+  const faviconHtml = faviconDataUrl ? `<img src="${faviconDataUrl}" width="20" height="20" alt="" class="favicon">` : '';
+  const savings     = results.totalRaw > 0 ? Math.max(0, Math.round((1 - results.totalTransferred / results.totalRaw) * 100)) : 0;
+  const chartJsSafe = chartJs.replace(/<\/script>/gi, '<\\/script>');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Page Bump — ${pageTitle}</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:var(--bg);color:var(--text);line-height:1.5}
+body.dark{--bg:#1a1a2e;--surface:#16213e;--border:#0f3460;--text:#eaeaea;--dim:#8888a8;--accent:#e94560}
+body.light{--bg:#f4f4f8;--surface:#ffffff;--border:#d1d1da;--text:#1a1a2e;--dim:#6b6b80;--accent:#e94560}
+.wrap{max-width:920px;margin:0 auto;padding:32px 24px;display:flex;flex-direction:column;gap:20px}
+.rpt-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.page-info{display:flex;align-items:center;gap:10px;min-width:0}
+.favicon{flex-shrink:0;border-radius:3px;object-fit:contain}
+.page-meta{min-width:0}
+.page-title{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.page-url{font-size:12px;color:var(--dim);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.page-url:hover{color:var(--accent)}
+.rpt-meta{font-size:11px;color:var(--dim);white-space:nowrap;flex-shrink:0;text-align:right;line-height:1.8}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.stat{background:var(--surface);padding:14px 12px;text-align:center}
+.stat-label{font-size:10px;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.stat-value{font-size:18px;font-weight:700}
+.mode-toggle{display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:3px;align-self:flex-start}
+.mode-tab{padding:6px 20px;border:none;border-radius:6px;background:transparent;color:var(--dim);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.mode-tab.active{background:var(--accent);color:#fff;font-weight:600}
+.mode-tab:not(.active):hover{color:var(--text);background:rgba(233,69,96,.1)}
+.pies{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.chart-title{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px}
+.pie-row{display:flex;align-items:center;gap:16px}
+.pie-row canvas{flex-shrink:0;width:180px !important;height:180px !important}
+.bar-wrap{position:relative;width:100%}
+.bar-wrap canvas{width:100% !important}
+.legend{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px}
+.legend-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.legend-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legend-size{color:var(--dim);font-size:11px;flex-shrink:0;font-variant-numeric:tabular-nums}
+.legend-pct{color:var(--dim);flex-shrink:0;font-variant-numeric:tabular-nums;min-width:36px;text-align:right}
+.rpt-footer{text-align:center;font-size:11px;color:var(--dim);padding-top:16px;border-top:1px solid var(--border)}
+.rpt-footer a{color:var(--accent);text-decoration:none}
+.rpt-footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body class="${isDark ? 'dark' : 'light'}">
+<div class="wrap">
+
+  <header class="rpt-header">
+    <div class="page-info">
+      ${faviconHtml}
+      <div class="page-meta">
+        <div class="page-title">${pageTitle}</div>
+        ${pageUrl ? `<a class="page-url" href="${pageUrl}" target="_blank" rel="noopener">${pageUrl}</a>` : ''}
+      </div>
+    </div>
+    <div class="rpt-meta">
+      Recorded ${escapeHtml(recordedAt)}<br>
+      Generated by Page Bump
+    </div>
+  </header>
+
+  <section class="summary">
+    <div class="stat"><div class="stat-label">Transferred</div><div class="stat-value">${fmtBytes(results.totalTransferred)}</div></div>
+    <div class="stat"><div class="stat-label">Raw Size</div><div class="stat-value">${fmtBytes(results.totalRaw)}</div></div>
+    <div class="stat"><div class="stat-label">Requests</div><div class="stat-value">${results.requestCount}</div></div>
+    <div class="stat"><div class="stat-label">Savings</div><div class="stat-value">${savings}%</div></div>
+  </section>
+
+  <div class="mode-toggle">
+    <button class="mode-tab active" data-mode="transferred">Transferred</button>
+    <button class="mode-tab" data-mode="raw">Raw</button>
+  </div>
+
+  <div class="pies">
+    <div class="chart-box">
+      <div class="chart-title">By Content Type</div>
+      <div class="pie-row">
+        <canvas id="chartType" width="180" height="180"></canvas>
+        <div id="legendType" class="legend"></div>
+      </div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">By Host</div>
+      <div class="pie-row">
+        <canvas id="chartHost" width="180" height="180"></canvas>
+        <div id="legendHost" class="legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-box">
+    <div class="chart-title">By Host + Path</div>
+    <div id="barWrap" class="bar-wrap"><canvas id="chartHostPath"></canvas></div>
+  </div>
+
+  <footer class="rpt-footer">Generated by <a href="https://github.com/nicholasgasior/page-bump" target="_blank">Page Bump</a></footer>
+
+</div>
+<script>${chartJsSafe}</script>
+<script>
+var DATA = ${JSON.stringify(results)};
+var TYPE_COLORS = ${JSON.stringify(TYPE_COLORS)};
+var currentMode = 'transferred';
+var BORDER = '${C.border}';
+var DIM    = '${C.dim}';
+var TEXT   = '${C.text}';
+var GRID   = '${C.grid}';
+var AXIS   = '${C.axis}';
+var TOOLTIP_BG = '${C.tooltipBg}';
+
+var chartType = null, chartHost = null, chartHostPath = null;
+
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(2) + ' MB';
+}
+
+function genColors(n) {
+  return Array.from({length: n}, function(_, i) {
+    return 'hsl(' + ((200 + Math.round(i / Math.max(n, 1) * 280)) % 360) + ',65%,55%)';
+  });
+}
+
+function renderLegend(id, labels, data, colors) {
+  var total = data.reduce(function(a, b) { return a + b; }, 0);
+  document.getElementById(id).innerHTML = labels.map(function(label, i) {
+    var pct = total > 0 ? ((data[i] / total) * 100).toFixed(1) : '0.0';
+    return '<div class="legend-item">' +
+      '<span class="legend-dot" style="background:' + colors[i] + '"></span>' +
+      '<span class="legend-label" title="' + label + '">' + label + '</span>' +
+      '<span class="legend-size">' + fmtBytes(data[i]) + '</span>' +
+      '<span class="legend-pct">' + pct + '%</span>' +
+    '</div>';
+  }).join('');
+}
+
+var tooltipDefaults = {
+  backgroundColor: TOOLTIP_BG, titleColor: TEXT, bodyColor: TEXT,
+  borderColor: '#e94560', borderWidth: 1,
+};
+
+function renderByType(mode) {
+  if (chartType) chartType.destroy();
+  var entries = Object.entries(DATA.byType).sort(function(a, b) { return b[1][mode] - a[1][mode]; });
+  var labels  = entries.map(function(e) { return e[0]; });
+  var data    = entries.map(function(e) { return e[1][mode]; });
+  var colors  = labels.map(function(l) { return TYPE_COLORS[l] || '#6e6e8a'; });
+  chartType = new Chart(document.getElementById('chartType'), {
+    type: 'doughnut',
+    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderColor: BORDER, borderWidth: 2, hoverBorderWidth: 0 }] },
+    options: { cutout: '60%', plugins: { legend: { display: false }, tooltip: Object.assign({}, tooltipDefaults, { callbacks: { label: function(c) { return '  ' + c.label + ': ' + fmtBytes(c.raw); } } }) } }
+  });
+  renderLegend('legendType', labels, data, colors);
+}
+
+function renderByHost(mode) {
+  if (chartHost) chartHost.destroy();
+  var entries = Object.entries(DATA.byHost).sort(function(a, b) { return b[1][mode] - a[1][mode]; });
+  var labels  = entries.map(function(e) { return e[0]; });
+  var data    = entries.map(function(e) { return e[1][mode]; });
+  var colors  = genColors(labels.length);
+  chartHost = new Chart(document.getElementById('chartHost'), {
+    type: 'doughnut',
+    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderColor: BORDER, borderWidth: 2, hoverBorderWidth: 0 }] },
+    options: { cutout: '60%', plugins: { legend: { display: false }, tooltip: Object.assign({}, tooltipDefaults, { callbacks: { label: function(c) { return '  ' + c.label + ': ' + fmtBytes(c.raw); } } }) } }
+  });
+  renderLegend('legendHost', labels, data, colors);
+}
+
+function renderByPath(mode) {
+  if (chartHostPath) chartHostPath.destroy();
+  var entries = Object.entries(DATA.byHostPath).sort(function(a, b) { return b[1][mode] - a[1][mode]; });
+  var labels  = entries.map(function(e) { return e[0]; });
+  var data    = entries.map(function(e) { return e[1][mode]; });
+  var total   = data.reduce(function(a, b) { return a + b; }, 0);
+  document.getElementById('barWrap').style.height = Math.max(200, entries.length * 24 + 50) + 'px';
+  var pctPlugin = {
+    id: 'pct',
+    afterDatasetsDraw: function(chart) {
+      var ctx = chart.ctx, meta = chart.getDatasetMeta(0);
+      ctx.save();
+      ctx.font = '11px system-ui,sans-serif';
+      ctx.fillStyle = DIM;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      data.forEach(function(val, i) {
+        var pct = total > 0 ? (val / total) * 100 : 0;
+        var bar = meta.data[i];
+        ctx.fillText(pct < 1 ? '<1%' : Math.round(pct) + '%', bar.x + 4, bar.y);
+      });
+      ctx.restore();
+    }
+  };
+  chartHostPath = new Chart(document.getElementById('chartHostPath'), {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ data: data, backgroundColor: 'rgba(233,69,96,0.75)', borderColor: '#e94560', borderWidth: 1, borderRadius: 3, borderSkipped: false }] },
+    options: {
+      indexAxis: 'y', maintainAspectRatio: false, layout: { padding: { right: 42 } },
+      plugins: { legend: { display: false }, tooltip: Object.assign({}, tooltipDefaults, { callbacks: { label: function(c) { return '  ' + fmtBytes(c.raw); } } }) },
+      scales: {
+        x: { ticks: { color: DIM, font: { size: 10 }, callback: function(v) { return fmtBytes(v); } }, grid: { color: GRID }, border: { color: AXIS } },
+        y: { ticks: { color: TEXT, font: { size: 10 }, autoSkip: false }, grid: { display: false }, border: { color: AXIS } }
+      }
+    },
+    plugins: [pctPlugin]
+  });
+}
+
+function renderAll(mode) {
+  renderByType(mode);
+  renderByHost(mode);
+  renderByPath(mode);
+}
+
+document.querySelectorAll('.mode-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.mode-tab').forEach(function(t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+    currentMode = tab.dataset.mode;
+    renderAll(currentMode);
+  });
+});
+
+renderAll(currentMode);
+</script>
+</body>
+</html>`;
 }

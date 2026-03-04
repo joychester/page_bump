@@ -354,6 +354,30 @@ body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   background: var(--accent-lo);
 }
 
+.pb-btn-export {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.pb-btn-export:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ---- Charts ---- */
 
 .pb-charts {
