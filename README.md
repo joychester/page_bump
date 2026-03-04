@@ -6,7 +6,7 @@ A lightweight Chrome extension that analyzes page weight by capturing network re
 
 ## Features
 
-- **Automatic recording** — starts capturing on every page navigation, stops after 8 s or 1.5 s of network idle
+- **Automatic recording** — starts capturing on every page navigation, stops after 10 s or 1.5 s of network idle
 - **Manual recording** — click Start Recording for a 20 s manual capture with no idle auto-stop
 - **Floating overlay** — always-visible panel injected into every page; drag it anywhere on screen
 - **Disable per tab** — pause recording on the current tab without affecting others
@@ -35,7 +35,7 @@ popup.js  ◄──broadcast───   background.js  (RECORDING_STOPPED, RECOR
 
 **Recording state machine:**
 ```
-idle  ──(navigation / Start button)──►  recording  ──(8 s / 1.5 s idle / Stop)──►  collecting  ──►  idle
+idle  ──(navigation / Start button)──►  recording  ──(10 s / 1.5 s idle / Stop)──►  collecting  ──►  idle
 ```
 
 ## Installation
@@ -76,7 +76,7 @@ page_bump/
 | `scripting` | Run `performance.getEntriesByType()` in the page's MAIN world |
 | `tabs` | Read tab URL, title, and favicon after recording |
 | `storage` | Persist recording state, theme, overlay position |
-| `alarms` | 8 s / 20 s max-duration timer that survives service worker sleep |
+| `alarms` | 10 s / 20 s max-duration timer that survives service worker sleep |
 | `declarativeNetRequest` | Inject `Timing-Allow-Origin: *` into responses so the Performance API can report accurate sizes for cross-origin resources |
 
 ## Known Limitations

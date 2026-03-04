@@ -1,6 +1,6 @@
 // background.js — Page Bump service worker
 
-const MAX_MS        = 8000;   // auto-start: 8 s max + idle detection
+const MAX_MS        = 10000;  // auto-start: 10 s max + idle detection
 const MAX_MS_MANUAL = 20000;  // manual start: 20 s max, no idle auto-stop
 const IDLE_MS = 1500;
 const ALARM = 'pb_max';
@@ -358,7 +358,7 @@ async function onRequestCompleted(details) {
 }
 
 // ---------------------------------------------------------------------------
-// Alarm: 8-second max recording duration
+// Alarm: 10-second max recording duration
 // ---------------------------------------------------------------------------
 
 async function onAlarm(alarm) {

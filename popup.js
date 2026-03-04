@@ -265,7 +265,7 @@ function showRecordingState(startTime, isManual = false) {
   hide('summary');
   hide('modeToggle');
   hide('charts');
-  startTimerDisplay(startTime, isManual ? 20000 : 8000);
+  startTimerDisplay(startTime, isManual ? 20000 : 10000);
   setBtn('Stop Recording', 'stop', false);
 }
 
@@ -367,7 +367,7 @@ function setBtn(label, style, disabled) {
 // Timer display
 // ---------------------------------------------------------------------------
 
-function startTimerDisplay(startTime, maxMs = 8000) {
+function startTimerDisplay(startTime, maxMs = 10000) {
   stopTimerDisplay();
   const el = document.getElementById('timer');
   const maxSec = (maxMs / 1000).toFixed(0);
