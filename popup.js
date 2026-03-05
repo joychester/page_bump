@@ -27,6 +27,7 @@ let currentMode = 'transferred'; // or 'raw'
 let currentTheme = 'dark';       // 'dark' | 'light'
 let currentResults = null;
 let charts = {};      // { type, host, hostPath }
+let myTabId = null;   // tab this popup instance belongs to
 let timerInterval = null;
 let pollHandle = null;
 let visibleHostCount = 10;
@@ -38,6 +39,9 @@ let isDisabled = false;
 // ---------------------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
+  chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => {
+    myTabId = tabs[0]?.id ?? null;
+  });
   initTheme();
   setupControls();
   setupDisableButton();
@@ -202,6 +206,8 @@ function setupModeToggle() {
 
 function setupMessageListener() {
   chrome.runtime.onMessage.addListener(message => {
+    // Only handle broadcasts for this tab
+    if (message.payload?.tabId !== undefined && message.payload.tabId !== myTabId) return;
     if (message.type === 'RECORDING_STOPPED') {
       stopTimerDisplay();
       showCollecting();
