@@ -3,13 +3,14 @@
 const MAX_MS        = 10000;  // auto-start: 10 s max + idle detection
 const MAX_MS_MANUAL = 20000;  // manual start: 20 s max, no idle auto-stop
 const IDLE_MS = 1500;
-const ALARM = 'pb_max';
-const KEY = 'pbState';
 const KEY_DISABLED = 'pbDisabledTabs'; // persisted array of disabled tab IDs
 
-// In-memory state cache (rehydrated from storage.session on wake)
-let _state = null;
-let _idleTimer = null;
+// Per-tab in-memory state cache and idle timers (rehydrated from storage.session on wake)
+const _states     = {};  // tabId → state
+const _idleTimers = {};  // tabId → timerId
+
+function alarmName(tabId) { return 'pb_max_' + tabId; }
+function stateKey(tabId)  { return 'pbState_' + tabId; }
 
 // ---------------------------------------------------------------------------
 // State helpers
@@ -18,7 +19,6 @@ let _idleTimer = null;
 function defaultState() {
   return {
     phase: 'idle',      // 'idle' | 'recording' | 'collecting'
-    tabId: null,
     startTime: null,
     isManual: false,    // true = user-initiated (20 s max, no idle stop)
     pageUrl: null,      // URL of the page being recorded
@@ -28,17 +28,22 @@ function defaultState() {
   };
 }
 
-async function getState() {
-  if (_state) return _state;
-  const data = await chrome.storage.session.get(KEY);
-  _state = data[KEY] ?? defaultState();
-  return _state;
+async function getState(tabId) {
+  if (_states[tabId]) return _states[tabId];
+  const data = await chrome.storage.session.get(stateKey(tabId));
+  _states[tabId] = data[stateKey(tabId)] ?? defaultState();
+  return _states[tabId];
 }
 
-async function setState(patch) {
-  const current = await getState();
-  _state = { ...current, ...patch };
-  await chrome.storage.session.set({ [KEY]: _state });
+async function setState(tabId, patch) {
+  const current = await getState(tabId);
+  _states[tabId] = { ...current, ...patch };
+  await chrome.storage.session.set({ [stateKey(tabId)]: _states[tabId] });
+}
+
+async function clearTabState(tabId) {
+  delete _states[tabId];
+  await chrome.storage.session.remove(stateKey(tabId));
 }
 
 async function getDisabledTabs() {
@@ -59,54 +64,53 @@ async function startRecording(tabId, pageUrl = null, isManual = false) {
   if (!pageUrl) {
     try { pageUrl = (await chrome.tabs.get(tabId)).url ?? null; } catch { /* tab may not exist */ }
   }
-  await setState({
+  await setState(tabId, {
     phase: 'recording',
-    tabId,
     startTime: Date.now(),
     isManual,
     pageUrl,
     requests: {},
     lastRequestTime: Date.now(),
   });
-  await chrome.alarms.clear(ALARM);
+  await chrome.alarms.clear(alarmName(tabId));
   const maxMs = isManual ? MAX_MS_MANUAL : MAX_MS;
-  chrome.alarms.create(ALARM, { delayInMinutes: maxMs / 60000 });
-  // Manual recordings rely solely on the 20 s alarm or the Stop button —
+  chrome.alarms.create(alarmName(tabId), { delayInMinutes: maxMs / 60000 });
+  // Manual recordings rely solely on the alarm or the Stop button —
   // no idle auto-stop so the user stays in control.
-  if (!isManual) resetIdleTimer();
+  if (!isManual) resetIdleTimer(tabId);
 }
 
-function resetIdleTimer() {
-  if (_state?.isManual) return; // manual recordings use only the alarm + Stop button
-  if (_idleTimer) clearTimeout(_idleTimer);
-  _idleTimer = setTimeout(() => autoStop('idle'), IDLE_MS);
+function resetIdleTimer(tabId) {
+  if (_states[tabId]?.isManual) return; // manual recordings use only the alarm + Stop button
+  if (_idleTimers[tabId]) clearTimeout(_idleTimers[tabId]);
+  _idleTimers[tabId] = setTimeout(() => autoStop(tabId, 'idle'), IDLE_MS);
 }
 
-async function autoStop(reason) {
-  const state = await getState();
+async function autoStop(tabId, reason) {
+  const state = await getState(tabId);
   if (state.phase !== 'recording') return;
-  await stopRecording(reason);
+  await stopRecording(tabId, reason);
 }
 
-async function stopRecording(reason) {
-  await chrome.alarms.clear(ALARM);
-  if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
-  await setState({ phase: 'collecting' });
-  broadcast({ type: 'RECORDING_STOPPED', payload: { reason } });
-  await collectPerformanceData();
+async function stopRecording(tabId, reason) {
+  await chrome.alarms.clear(alarmName(tabId));
+  if (_idleTimers[tabId]) { clearTimeout(_idleTimers[tabId]); delete _idleTimers[tabId]; }
+  await setState(tabId, { phase: 'collecting' });
+  broadcast({ type: 'RECORDING_STOPPED', payload: { tabId, reason } });
+  await collectPerformanceData(tabId);
 }
 
 // ---------------------------------------------------------------------------
 // Performance data collection + merge
 // ---------------------------------------------------------------------------
 
-async function collectPerformanceData() {
-  const state = await getState();
+async function collectPerformanceData(tabId) {
+  const state = await getState(tabId);
   let perfEntries = [];
 
   try {
     const results = await chrome.scripting.executeScript({
-      target: { tabId: state.tabId },
+      target: { tabId },
       world: 'MAIN',
       func: () => performance.getEntriesByType('resource').map(e => ({
         name: e.name,
@@ -125,15 +129,15 @@ async function collectPerformanceData() {
   let pageTitle = null;
   let favIconUrl = null;
   try {
-    const tab = await chrome.tabs.get(state.tabId);
+    const tab = await chrome.tabs.get(tabId);
     pageTitle  = tab.title   ?? null;
     favIconUrl = tab.favIconUrl ?? null;
   } catch { /* tab may have closed */ }
 
   const merged = mergeData(state.requests, perfEntries);
   const results = buildResultPayload(merged, { pageUrl: state.pageUrl, pageTitle, favIconUrl });
-  await setState({ phase: 'idle', results });
-  broadcast({ type: 'RECORDING_DONE' });
+  await setState(tabId, { phase: 'idle', results });
+  broadcast({ type: 'RECORDING_DONE', payload: { tabId } });
 }
 
 function mergeData(requests, perfEntries) {
@@ -241,19 +245,20 @@ function onMessage(message, sender, sendResponse) {
 }
 
 async function handleMessage(message, sender = {}) {
-  const state = await getState();
   const senderTabId = sender.tab?.id ?? null;
 
   switch (message.type) {
     case 'GET_STATE': {
+      if (!senderTabId) return { phase: 'idle', startTime: null, isManual: false, requestCount: 0, isDisabled: false };
+      const state = await getState(senderTabId);
       const disabled = await getDisabledTabs();
       return {
         phase: state.phase,
-        tabId: state.tabId,
+        tabId: senderTabId,
         startTime: state.startTime,
         isManual: state.isManual,
         requestCount: Object.keys(state.requests).length,
-        isDisabled: senderTabId !== null && disabled.has(senderTabId),
+        isDisabled: disabled.has(senderTabId),
       };
     }
 
@@ -266,11 +271,18 @@ async function handleMessage(message, sender = {}) {
     }
 
     case 'STOP_RECORDING':
-      if (state.phase === 'recording') await stopRecording('user');
+      if (!senderTabId) return { ok: false };
+      {
+        const state = await getState(senderTabId);
+        if (state.phase === 'recording') await stopRecording(senderTabId, 'user');
+      }
       return { ok: true };
 
-    case 'GET_RESULTS':
+    case 'GET_RESULTS': {
+      if (!senderTabId) return null;
+      const state = await getState(senderTabId);
       return state.results ?? null;
+    }
 
     case 'DISABLE_TAB': {
       if (!senderTabId) return { ok: false };
@@ -278,8 +290,9 @@ async function handleMessage(message, sender = {}) {
       disabled.add(senderTabId);
       await setDisabledTabs(disabled);
       // Stop any active recording on this tab
-      if (state.phase === 'recording' && state.tabId === senderTabId) {
-        await stopRecording('disabled');
+      const state = await getState(senderTabId);
+      if (state.phase === 'recording') {
+        await stopRecording(senderTabId, 'disabled');
       }
       return { ok: true };
     }
@@ -313,12 +326,12 @@ async function onBeforeNavigate(details) {
   const disabled = await getDisabledTabs();
   if (disabled.has(details.tabId)) return; // recording disabled for this tab
 
-  const state = await getState();
+  const state = await getState(details.tabId);
 
-  if (state.phase === 'recording' && state.tabId === details.tabId) {
+  if (state.phase === 'recording') {
     // New navigation while already recording: reset and restart
-    await chrome.alarms.clear(ALARM);
-    if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
+    await chrome.alarms.clear(alarmName(details.tabId));
+    if (_idleTimers[details.tabId]) { clearTimeout(_idleTimers[details.tabId]); delete _idleTimers[details.tabId]; }
     await startRecording(details.tabId, details.url);
     broadcast({ type: 'RECORDING_STARTED', payload: { tabId: details.tabId, reset: true } });
     return;
@@ -335,9 +348,8 @@ async function onBeforeNavigate(details) {
 // ---------------------------------------------------------------------------
 
 async function onRequestCompleted(details) {
-  const state = await getState();
+  const state = await getState(details.tabId);
   if (state.phase !== 'recording') return;
-  if (state.tabId !== details.tabId) return;
 
   const headers = details.responseHeaders ?? [];
   const ctHeader = headers.find(h => h.name.toLowerCase() === 'content-type');
@@ -353,18 +365,20 @@ async function onRequestCompleted(details) {
   const requests = { ...state.requests };
   requests[details.url] = { url: details.url, host, contentType, contentLength, transferredSize };
 
-  await setState({ requests, lastRequestTime: Date.now() });
-  resetIdleTimer();
+  await setState(details.tabId, { requests, lastRequestTime: Date.now() });
+  resetIdleTimer(details.tabId);
 }
 
 // ---------------------------------------------------------------------------
-// Alarm: 10-second max recording duration
+// Alarm: 10-second max recording duration (per tab)
 // ---------------------------------------------------------------------------
 
 async function onAlarm(alarm) {
-  if (alarm.name !== ALARM) return;
-  const state = await getState();
-  if (state.phase === 'recording') await stopRecording('maxTime');
+  const m = alarm.name.match(/^pb_max_(\d+)$/);
+  if (!m) return;
+  const tabId = +m[1];
+  const state = await getState(tabId);
+  if (state.phase === 'recording') await stopRecording(tabId, 'maxTime');
 }
 
 // ---------------------------------------------------------------------------
@@ -379,20 +393,24 @@ async function onTabRemoved(tabId) {
     await setDisabledTabs(disabled);
   }
 
-  const state = await getState();
-  if (state.phase !== 'recording' || state.tabId !== tabId) return;
+  // Clear idle timer for this tab
+  if (_idleTimers[tabId]) { clearTimeout(_idleTimers[tabId]); delete _idleTimers[tabId]; }
+  await chrome.alarms.clear(alarmName(tabId));
 
-  await chrome.alarms.clear(ALARM);
-  if (_idleTimer) { clearTimeout(_idleTimer); _idleTimer = null; }
+  const state = await getState(tabId);
+  if (state.phase === 'recording') {
+    // Build results from webRequest data only (no Performance API — page is gone)
+    const merged = Object.values(state.requests).map(req => ({
+      ...req,
+      rawSize: req.transferredSize,
+    }));
+    const results = buildResultPayload(merged, { pageUrl: state.pageUrl });
+    await setState(tabId, { phase: 'idle', results });
+    broadcast({ type: 'RECORDING_DONE', payload: { tabId } });
+  }
 
-  // Build results from webRequest data only (no Performance API — page is gone)
-  const merged = Object.values(state.requests).map(req => ({
-    ...req,
-    rawSize: req.transferredSize,
-  }));
-  const results = buildResultPayload(merged, { pageUrl: state.pageUrl });
-  await setState({ phase: 'idle', results });
-  broadcast({ type: 'RECORDING_DONE' });
+  // Always clean up per-tab state when tab closes
+  await clearTabState(tabId);
 }
 
 // ---------------------------------------------------------------------------
